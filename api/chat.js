@@ -127,6 +127,75 @@ export default async function handler(req, res) {
       })
     );
 
+let areaFromWiki = null;
+let areaWikiUrl = null;
+
+if (page.wikibase_item) {
+  try {
+    const wdUrl = new URL("https://www.wikidata.org/w/api.php");
+    wdUrl.search = new URLSearchParams({
+      action: "wbgetentities",
+      ids: page.wikibase_item,
+      props: "claims|sitelinks",
+      format: "json"
+    }).toString();
+
+    const wdResponse = await fetch(wdUrl, {
+      headers: { Accept: "application/json" }
+    });
+
+    if (wdResponse.ok) {
+      const wdData = await wdResponse.json();
+      const entity = wdData.entities?.[page.wikibase_item];
+      const claims = entity?.claims?.P2046 || [];
+
+      const claim = claims.find((item) =>
+        item.rank === "preferred" &&
+        item.mainsnak?.datavalue?.value?.amount
+      ) || claims.find((item) =>
+        item.rank !== "deprecated" &&
+        item.mainsnak?.datavalue?.value?.amount
+      );
+
+      if (claim) {
+        const value = claim.mainsnak.datavalue.value;
+        const amount = Number(value.amount);
+        const unit = String(value.unit || "").split("/").pop();
+
+        const toKm2 = {
+          Q712226: 1,       // km²
+          Q25343: 0.000001, // m²
+          Q35852: 0.01,     // hecta
+          Q232291: 2.589988110336 // dặm vuông
+        };
+
+        if (
+          Number.isFinite(amount) &&
+          amount > 0 &&
+          toKm2[unit] !== undefined
+        ) {
+          const km2 = amount * toKm2[unit];
+
+          areaFromWiki =
+            km2 >= 100
+              ? km2.toLocaleString("vi-VN", {
+                  maximumFractionDigits: 2
+                }) + " km²"
+              : km2.toLocaleString("vi-VN", {
+                  maximumFractionDigits: 6
+                }) + " km²";
+
+          areaWikiUrl =
+            "https://www.wikidata.org/wiki/" +
+            page.wikibase_item;
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Wikidata area lookup:", error.message);
+  }
+}
+
     const extract = String(page.extract || "").trim();
     const sentences = extract
       .split(/(?<=[.!?])\s+/)
@@ -143,10 +212,17 @@ export default async function handler(req, res) {
     return res.status(200).json({
       title: page.title || title,
       subtitle: page.description || "Thông tin địa lí tham khảo",
-      area: match ? match.area : "Chưa xác minh được",
-      area_note: match
-        ? match.area_note
-        : "Chưa có số liệu diện tích được kiểm duyệt trong bộ dữ liệu của website. Không nên tự suy đoán; hãy kiểm tra nguồn chính thức hoặc nguồn chuyên môn.",
+     
+area: match
+  ? match.area
+  : areaFromWiki || "Chưa xác minh được",
+
+area_note: match
+  ? match.area_note
+  : areaFromWiki
+    ? "Diện tích được lấy từ thuộc tính P2046 của Wikidata và quy đổi sang km². Cần mở nguồn để kiểm tra phạm vi địa lí, thời điểm thống kê và độ phù hợp với địa danh."
+    : "Chưa tìm thấy số liệu diện tích có đơn vị phù hợp trong Wikidata. Hãy kiểm tra nguồn chính thức hoặc nguồn chuyên môn; website không tự suy đoán diện tích.",
+
       image_url:
         page.thumbnail?.source ||
         page.originalimage?.source ||
@@ -156,22 +232,12 @@ export default async function handler(req, res) {
         "https://vi.wikipedia.org/wiki/" +
           encodeURIComponent(title.replace(/ /g, "_")),
       facts,
-      sources: [
-        {
-          title: "Bài viết Wikipedia tiếng Việt",
-          url:
-            page.content_urls?.desktop?.page ||
-            "https://vi.wikipedia.org/wiki/" +
-              encodeURIComponent(title.replace(/ /g, "_"))
-        },
-        ...(match
-          ? [
-              {
-                title: "Nguồn tham khảo diện tích",
-                url: match.source
-              }
-            ]
-          : [])
+      sources: [...(areaWikiUrl
+  ? [{
+      title: "Dữ liệu diện tích trên Wikidata",
+      url: areaWikiUrl
+    }]
+  : [])
       ],
       quiz: makeQuiz()
     });
