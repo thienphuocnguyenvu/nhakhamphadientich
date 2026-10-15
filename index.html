@@ -45,19 +45,45 @@ function makeSources(list){const box=$('sources');box.replaceChildren();(list||[
 function showFacts(data, place){$('resultTitle').textContent=data.title||place;$('resultSubtitle').textContent=data.subtitle||'Thông tin địa lí và diện tích';$('areaNumber').textContent=data.area||'Chưa xác minh được';$('areaNote').textContent=data.area_note||'Đơn vị km². Nếu chưa có số liệu đáng tin cậy, hãy kiểm tra nguồn tham khảo cùng thầy cô.';const facts=$('factText');facts.replaceChildren();(data.facts||[]).slice(0,4).forEach(f=>{const p=document.createElement('p');p.textContent='• '+f;facts.appendChild(p)});if(!facts.children.length){const p=document.createElement('p');p.textContent=data.summary||'Chưa tìm được mô tả ngắn đáng tin cậy.';facts.appendChild(p)}makeSources(data.sources||[]);$('result').style.display='block';$('welcome').style.display='none';}
 async function loadImage(place, wikiUrl){const img=$('placeImage');img.alt='Ảnh minh họa '+place;img.src='';$('imageCredit').textContent='Đang tìm ảnh minh họa…';try{let q=place;const url='https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent('filetype:bitmap '+q)+'&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=900&format=json&origin=*';const r=await fetch(url);if(!r.ok)throw new Error('commons');const j=await r.json();const pages=Object.values(j.query?.pages||{});const page=pages.find(p=>/\.(jpg|jpeg|png|webp)$/i.test(p.title||''))||pages[0];const info=page?.imageinfo?.[0];if(info?.thumburl||info?.url){img.src=info.thumburl||info.url;img.onerror=()=>{img.onerror=null;img.src='https://placehold.co/900x600/e8f7ef/126b59?text='+encodeURIComponent(place)};const author=info.extmetadata?.Artist?.value?.replace(/<[^>]*>/g,'')||'Wikimedia Commons';$('imageCredit').textContent='Ảnh: '+author+' · Wikimedia Commons';return}}catch(e){}img.src='https://placehold.co/900x600/e8f7ef/126b59?text='+encodeURIComponent(place);$('imageCredit').textContent='Chưa tải được ảnh phù hợp. Em có thể mở nguồn tham khảo để xem hình ảnh địa danh.';}
 function buildQuiz(q){currentQuiz=q;$('quizArea').replaceChildren();if(!q||!q.question||!Array.isArray(q.options)||q.options.length<2){const p=document.createElement('p');p.className='quizquestion';p.textContent='Hãy thử đặt câu hỏi: “Nếu diện tích địa danh này được đổi sang m² thì bằng bao nhiêu?”';$('quizArea').appendChild(p);return}const p=document.createElement('p');p.className='quizquestion';p.textContent=q.question;$('quizArea').appendChild(p);const answers=document.createElement('div');answers.className='answers';q.options.slice(0,4).forEach((opt,i)=>{const b=document.createElement('button');b.className='answer';b.textContent=String.fromCharCode(65+i)+'. '+opt;b.addEventListener('click',()=>{if(answers.dataset.done)return;answers.dataset.done='1';const correct=i===Number(q.correct_index);b.classList.add(correct?'correct':'wrong');if(!correct&&answers.children[Number(q.correct_index)])answers.children[Number(q.correct_index)].classList.add('correct');feedback.textContent=(correct?'🎉 Chính xác! ':'Chưa đúng rồi. ')+(q.explanation||'Em hãy thử kiểm tra lại cách tính.');feedback.style.color=correct?'#137a51':'#a13b32';[...answers.children].forEach(x=>x.disabled=true)});answers.appendChild(b)});$('quizArea').appendChild(answers);const feedback=document.createElement('div');feedback.className='feedback';feedback.setAttribute('aria-live','polite');$('quizArea').appendChild(feedback);const again=document.createElement('button');again.className='newquestion';again.textContent='↻ Khám phá địa danh khác';again.addEventListener('click',()=>{input.value='';input.focus();window.scrollTo({top:0,behavior:'smooth'})});$('quizArea').appendChild(again)}
-async function lookupOpenKnowledge(place){
-  // Public Wikimedia APIs provide a no-key fallback when the teacher has not configured the AI server yet.
-  const languages=['vi','en']; let page=null, lang='vi';
-  for(const language of languages){
-    const searchUrl=`https://${language}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(place)}&srlimit=5&format=json&origin=*`;
-    const sr=await fetch(searchUrl); if(!sr.ok) continue;
-    const sj=await sr.json(); const hit=sj.query?.search?.[0];
-    if(hit){
-      lang=language;
-      const summaryUrl=`https://${language}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hit.title.replace(/ /g,'_'))}`;
-      const pr=await fetch(summaryUrl); if(pr.ok){page=await pr.json(); if(page?.extract) break;}
-    }
+
+async function searchPlace(place) {
+  place = place.trim();
+  if (!place) return;
+
+  if (place.length > 160) {
+    showError("Tên địa danh hơi dài. Em hãy nhập tên ngắn hơn nhé!");
+    return;
   }
+
+  lastPlace = place;
+  setLoading(true);
+
+  try {
+    // Tra cứu trực tiếp từ bách khoa mở, không gọi OpenAI API.
+    await lookupOpenKnowledge(place);
+  } catch (err) {
+    showError(
+      "Chưa tra cứu được địa danh này. Em hãy thử tên đầy đủ hơn hoặc kiểm tra kết nối Internet."
+    );
+
+    const a = document.createElement("a");
+    a.href =
+      "https://www.google.com/search?q=" +
+      encodeURIComponent(place + " diện tích km² nguồn chính thức");
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = "Mở tìm kiếm nguồn tham khảo";
+    a.style.display = "inline-block";
+    a.style.marginTop = "8px";
+    a.style.color = "#126b59";
+
+    $("error").appendChild(document.createElement("br"));
+    $("error").appendChild(a);
+  } finally {
+    $("loading").style.display = "none";
+  }
+}
+
   if(!page?.extract) throw new Error('Không tìm thấy bài viết phù hợp từ nguồn bách khoa mở.');
   const extract=page.extract.replace(/\s+/g,' ').trim();
   // Only display area if the article text explicitly contains a plausible area figure; otherwise do not guess.
