@@ -26,32 +26,318 @@
     <div class="footer"><strong>NHÀ KHÁM PHÁ DIỆN TÍCH</strong> · Sản phẩm học tập minh họa cho Toán lớp 5<br>Khuyến khích học sinh đọc nguồn, so sánh số liệu và trao đổi với giáo viên. Không nhập thông tin cá nhân vào khung tìm kiếm.</div>
   </main>
 <script>
-const $ = id => document.getElementById(id);
-const form = $('searchForm'), input = $('placeInput');
-let lastPlace = '', currentQuiz = null;
-const fallbackFacts = {
- 'thành phố hồ chí minh': {area:'6.772,59 km²',note:'Diện tích tự nhiên theo Nghị quyết 202/2025/QH15 sau khi sắp xếp TP.HCM, Bình Dương và Bà Rịa – Vũng Tàu.',facts:['Là đô thị lớn ở phía Nam Việt Nam.','Sông Sài Gòn gắn liền với lịch sử và đời sống của thành phố.','Thành phố có nhiều công trình, bảo tàng và không gian văn hóa.'],source:'https://vbpl.vn/TW/Pages/vbpq-toanvan.aspx?ItemID=179501'},
- 'việt nam': {area:'331.212 km²',note:'Diện tích tự nhiên thường được công bố khoảng 331 nghìn km²; số liệu có thể khác theo nguồn và cách thống kê.',facts:['Việt Nam nằm ở khu vực Đông Nam Á.','Đường bờ biển kéo dài dọc phía đông đất nước.','Việt Nam có nhiều dạng địa hình: núi, đồng bằng, cao nguyên và hải đảo.'],source:'https://www.gso.gov.vn/'},
- 'đảo phú quốc': {area:'khoảng 574 km²',note:'Số liệu thường dùng cho đảo Phú Quốc; cần phân biệt diện tích đảo với diện tích đơn vị hành chính.',facts:['Phú Quốc thuộc tỉnh An Giang theo địa giới hành chính sau sắp xếp năm 2025.','Đảo có bãi biển, rừng và hệ sinh thái đa dạng.','Nước biển trong xanh và các rạn san hô là điểm thu hút du khách.'],source:'https://vietnam.travel/'},
- 'hồ ba bể': {area:'khoảng 5 km²',note:'Diện tích mặt hồ thường được giới thiệu xấp xỉ 5 km²; tùy tài liệu có thể có cách đo khác nhau.',facts:['Hồ Ba Bể nằm ở tỉnh Thái Nguyên theo địa giới hành chính sau sắp xếp năm 2025.','Đây là hồ nước ngọt tự nhiên nằm giữa vùng núi đá vôi.','Khu vực quanh hồ có rừng, hang động và nhiều loài sinh vật.'],source:'https://vietnam.travel/'},
- 'nhật bản': {area:'377.975 km²',note:'Số liệu diện tích tham khảo; các nguồn có thể khác nhau do đảo, vùng nước và cách thống kê.',facts:['Nhật Bản là quốc đảo ở Đông Á.','Núi Phú Sĩ là một biểu tượng nổi tiếng của đất nước.','Nhật Bản thường xuyên có động đất vì nằm gần ranh giới các mảng kiến tạo.'],source:'https://www.stat.go.jp/english/'},
- 'sa mạc sahara': {area:'khoảng 9.200.000 km²',note:'Ước tính diện tích; ranh giới sa mạc tự nhiên không phải đường biên hành chính cố định.',facts:['Sahara nằm ở Bắc Phi và là sa mạc nóng rộng nhất thế giới.','Không phải toàn bộ Sahara đều là cồn cát; nơi đây còn có cao nguyên đá và đồng bằng sỏi.','Nhiệt độ và lượng mưa khác nhau đáng kể giữa các khu vực.'],source:'https://www.britannica.com/place/Sahara-desert-Africa'},
- 'hồ superior': {area:'khoảng 82.100 km²',note:'Diện tích mặt nước ước tính; số liệu có thể thay đổi nhẹ theo nguồn.',facts:['Hồ Superior nằm giữa Canada và Hoa Kỳ.','Đây là hồ lớn nhất trong nhóm Ngũ Đại Hồ Bắc Mỹ theo diện tích mặt nước.','Nước hồ rất lạnh trong nhiều thời điểm trong năm.'],source:'https://www.britannica.com/place/Lake-Superior'}
-};
-function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function setLoading(on){$('loading').style.display=on?'block':'none';$('error').style.display='none';if(on){$('welcome').style.display='none';$('result').style.display='none';}}
-function showError(msg){$('error').textContent=msg;$('error').style.display='block';$('loading').style.display='none';}
-function makeSources(list){const box=$('sources');box.replaceChildren();(list||[]).slice(0,8).forEach(s=>{if(!s.url||!/^https?:\/\//i.test(s.url))return;const a=document.createElement('a');a.className='source-link';a.href=s.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='↗ '+(s.title||s.url);box.appendChild(a)});if(!box.children.length){const a=document.createElement('a');a.className='source-link';a.href='https://www.google.com/search?q='+encodeURIComponent(lastPlace+' diện tích km2 nguồn chính thức');a.target='_blank';a.rel='noopener noreferrer';a.textContent='↗ Tìm nguồn tham khảo trên web';box.appendChild(a)}}
-function showFacts(data, place){$('resultTitle').textContent=data.title||place;$('resultSubtitle').textContent=data.subtitle||'Thông tin địa lí và diện tích';$('areaNumber').textContent=data.area||'Chưa xác minh được';$('areaNote').textContent=data.area_note||'Đơn vị km². Nếu chưa có số liệu đáng tin cậy, hãy kiểm tra nguồn tham khảo cùng thầy cô.';const facts=$('factText');facts.replaceChildren();(data.facts||[]).slice(0,4).forEach(f=>{const p=document.createElement('p');p.textContent='• '+f;facts.appendChild(p)});if(!facts.children.length){const p=document.createElement('p');p.textContent=data.summary||'Chưa tìm được mô tả ngắn đáng tin cậy.';facts.appendChild(p)}makeSources(data.sources||[]);$('result').style.display='block';$('welcome').style.display='none';}
-async function loadImage(place, wikiUrl){const img=$('placeImage');img.alt='Ảnh minh họa '+place;img.src='';$('imageCredit').textContent='Đang tìm ảnh minh họa…';try{let q=place;const url='https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch='+encodeURIComponent('filetype:bitmap '+q)+'&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=900&format=json&origin=*';const r=await fetch(url);if(!r.ok)throw new Error('commons');const j=await r.json();const pages=Object.values(j.query?.pages||{});const page=pages.find(p=>/\.(jpg|jpeg|png|webp)$/i.test(p.title||''))||pages[0];const info=page?.imageinfo?.[0];if(info?.thumburl||info?.url){img.src=info.thumburl||info.url;img.onerror=()=>{img.onerror=null;img.src='https://placehold.co/900x600/e8f7ef/126b59?text='+encodeURIComponent(place)};const author=info.extmetadata?.Artist?.value?.replace(/<[^>]*>/g,'')||'Wikimedia Commons';$('imageCredit').textContent='Ảnh: '+author+' · Wikimedia Commons';return}}catch(e){}img.src='https://placehold.co/900x600/e8f7ef/126b59?text='+encodeURIComponent(place);$('imageCredit').textContent='Chưa tải được ảnh phù hợp. Em có thể mở nguồn tham khảo để xem hình ảnh địa danh.';}
-function buildQuiz(q){currentQuiz=q;$('quizArea').replaceChildren();if(!q||!q.question||!Array.isArray(q.options)||q.options.length<2){const p=document.createElement('p');p.className='quizquestion';p.textContent='Hãy thử đặt câu hỏi: “Nếu diện tích địa danh này được đổi sang m² thì bằng bao nhiêu?”';$('quizArea').appendChild(p);return}const p=document.createElement('p');p.className='quizquestion';p.textContent=q.question;$('quizArea').appendChild(p);const answers=document.createElement('div');answers.className='answers';q.options.slice(0,4).forEach((opt,i)=>{const b=document.createElement('button');b.className='answer';b.textContent=String.fromCharCode(65+i)+'. '+opt;b.addEventListener('click',()=>{if(answers.dataset.done)return;answers.dataset.done='1';const correct=i===Number(q.correct_index);b.classList.add(correct?'correct':'wrong');if(!correct&&answers.children[Number(q.correct_index)])answers.children[Number(q.correct_index)].classList.add('correct');feedback.textContent=(correct?'🎉 Chính xác! ':'Chưa đúng rồi. ')+(q.explanation||'Em hãy thử kiểm tra lại cách tính.');feedback.style.color=correct?'#137a51':'#a13b32';[...answers.children].forEach(x=>x.disabled=true)});answers.appendChild(b)});$('quizArea').appendChild(answers);const feedback=document.createElement('div');feedback.className='feedback';feedback.setAttribute('aria-live','polite');$('quizArea').appendChild(feedback);const again=document.createElement('button');again.className='newquestion';again.textContent='↻ Khám phá địa danh khác';again.addEventListener('click',()=>{input.value='';input.focus();window.scrollTo({top:0,behavior:'smooth'})});$('quizArea').appendChild(again)}
+
+const $ = (id) => document.getElementById(id);
+const form = $("searchForm");
+const input = $("placeInput");
+
+let lastPlace = "";
+
+const knownPlaces = [
+  {
+    names: ["việt nam"],
+    area: "331.212 km²",
+    note: "Diện tích tham khảo. Cần đối chiếu nguồn thống kê chính thức và thời điểm công bố.",
+    facts: [
+      "Việt Nam nằm ở khu vực Đông Nam Á.",
+      "Đất nước có nhiều dạng địa hình như núi, đồng bằng, cao nguyên và hải đảo.",
+      "Đường bờ biển kéo dài dọc phía đông đất nước."
+    ],
+    source: "https://www.gso.gov.vn/"
+  },
+  {
+    names: [
+      "đảo phú quốc",
+      "phú quốc"
+    ],
+    area: "Khoảng 574 km²",
+    note: "Số liệu tham khảo của đảo Phú Quốc, không phải diện tích toàn đơn vị hành chính.",
+    facts: [
+      "Phú Quốc là đảo lớn thuộc Việt Nam.",
+      "Đảo có bãi biển, rừng và hệ sinh thái đa dạng.",
+      "Cần phân biệt diện tích đảo với diện tích đơn vị hành chính."
+    ],
+    source: "https://vi.wikipedia.org/wiki/Ph%C3%BA_Qu%E1%BB%91c"
+  },
+  {
+    names: ["hồ ba bể"],
+    area: "Khoảng 5 km²",
+    note: "Diện tích mặt hồ tham khảo; các tài liệu có thể dùng cách đo khác nhau.",
+    facts: [
+      "Hồ Ba Bể là hồ nước ngọt tự nhiên ở vùng núi phía Bắc Việt Nam.",
+      "Khu vực quanh hồ có rừng và hệ sinh thái đa dạng.",
+      "Cần phân biệt diện tích mặt hồ với diện tích khu vực bảo tồn."
+    ],
+    source: "https://vi.wikipedia.org/wiki/H%E1%BB%93_Ba_B%E1%BB%83"
+  },
+  {
+    names: ["nhật bản"],
+    area: "Khoảng 377.975 km²",
+    note: "Diện tích tham khảo; cần đối chiếu số liệu thống kê chính thức.",
+    facts: [
+      "Nhật Bản là quốc đảo ở Đông Á.",
+      "Núi Phú Sĩ là một biểu tượng nổi tiếng của đất nước.",
+      "Nhật Bản có nhiều đảo lớn và nhỏ."
+    ],
+    source: "https://www.stat.go.jp/english/"
+  },
+  {
+    names: ["sa mạc sahara"],
+    area: "Khoảng 9.200.000 km²",
+    note: "Đây là số liệu ước tính; ranh giới sa mạc tự nhiên không phải đường biên hành chính cố định.",
+    facts: [
+      "Sahara nằm ở Bắc Phi.",
+      "Đây là sa mạc nóng rộng nhất thế giới.",
+      "Sahara có cồn cát, cao nguyên đá và đồng bằng sỏi."
+    ],
+    source: "https://www.britannica.com/place/Sahara-desert-Africa"
+  },
+  {
+    names: ["hồ superior"],
+    area: "Khoảng 82.100 km²",
+    note: "Diện tích mặt nước tham khảo; hãy kiểm tra phạm vi thống kê của nguồn.",
+    facts: [
+      "Hồ Superior nằm giữa Canada và Hoa Kỳ.",
+      "Đây là hồ lớn nhất trong nhóm Ngũ Đại Hồ Bắc Mỹ theo diện tích mặt nước.",
+      "Hồ có lượng nước ngọt rất lớn."
+    ],
+    source: "https://www.britannica.com/place/Lake-Superior"
+  },
+  {
+    names: [
+      "thành phố hồ chí minh",
+      "tp hồ chí minh",
+      "tp. hồ chí minh"
+    ],
+    area: "6.772,59 km²",
+    note: "Số liệu tham khảo theo địa giới hành chính sau sắp xếp năm 2025. Cần kiểm tra văn bản chính thức và phạm vi thống kê.",
+    facts: [
+      "Thành phố Hồ Chí Minh nằm ở phía Nam Việt Nam.",
+      "Sông Sài Gòn gắn liền với lịch sử và đời sống của thành phố.",
+      "Thành phố có nhiều công trình văn hóa và lịch sử."
+    ],
+    source: "https://vbpl.vn/TW/Pages/vbpq-toanvan.aspx?ItemID=179501"
+  }
+];
+
+function normalize(text = "") {
+  return String(text)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function setLoading(on) {
+  $("loading").style.display = on ? "block" : "none";
+  $("error").style.display = "none";
+
+  if (on) {
+    $("welcome").style.display = "none";
+    $("result").style.display = "none";
+  }
+}
+
+function showError(message) {
+  $("error").textContent = message;
+  $("error").style.display = "block";
+  $("loading").style.display = "none";
+}
+
+function makeSources(sources) {
+  const box = $("sources");
+  box.replaceChildren();
+
+  (sources || []).forEach((source) => {
+    if (!source.url || !/^https?:\/\//i.test(source.url)) {
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.className = "source-link";
+    link.href = source.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "↗ " + source.title;
+    box.appendChild(link);
+  });
+
+  if (!box.children.length) {
+    const link = document.createElement("a");
+    link.className = "source-link";
+    link.href =
+      "https://www.google.com/search?q=" +
+      encodeURIComponent(lastPlace + " diện tích km² nguồn chính thức");
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "↗ Tìm nguồn diện tích để kiểm chứng";
+    box.appendChild(link);
+  }
+}
+
+function showFacts(data, place) {
+  $("resultTitle").textContent = data.title || place;
+  $("resultSubtitle").textContent =
+    data.subtitle || "Thông tin địa lí tham khảo";
+
+  $("areaNumber").textContent =
+    data.area || "Chưa xác minh được";
+
+  $("areaNote").textContent =
+    data.area_note ||
+    "Hãy mở nguồn tham khảo để kiểm tra diện tích, phạm vi và thời điểm thống kê.";
+
+  const factBox = $("factText");
+  factBox.replaceChildren();
+
+  (data.facts || []).slice(0, 4).forEach((fact) => {
+    const p = document.createElement("p");
+    p.textContent = "• " + fact;
+    factBox.appendChild(p);
+  });
+
+  if (!factBox.children.length) {
+    const p = document.createElement("p");
+    p.textContent = "Chưa có thông tin giới thiệu phù hợp.";
+    factBox.appendChild(p);
+  }
+
+  makeSources(data.sources || []);
+
+  $("result").style.display = "block";
+  $("welcome").style.display = "none";
+  $("error").style.display = "none";
+}
+
+function buildQuiz() {
+  const box = $("quizArea");
+  box.replaceChildren();
+
+  const question = document.createElement("p");
+  question.className = "quizquestion";
+  question.textContent = "1 km² bằng bao nhiêu mét vuông?";
+  box.appendChild(question);
+
+  const options = [
+    "1.000 m²",
+    "10.000 m²",
+    "100.000 m²",
+    "1.000.000 m²"
+  ];
+
+  const answers = document.createElement("div");
+  answers.className = "answers";
+
+  const feedback = document.createElement("div");
+  feedback.className = "feedback";
+  feedback.setAttribute("aria-live", "polite");
+
+  options.forEach((option, index) => {
+    const button = document.createElement("button");
+    button.className = "answer";
+    button.textContent =
+      String.fromCharCode(65 + index) + ". " + option;
+
+    button.addEventListener("click", () => {
+      if (answers.dataset.done) return;
+      answers.dataset.done = "1";
+
+      const correct = index === 3;
+      button.classList.add(correct ? "correct" : "wrong");
+
+      if (!correct) {
+        answers.children[3].classList.add("correct");
+      }
+
+      feedback.textContent = correct
+        ? "🎉 Chính xác! 1 km² = 1.000.000 m²."
+        : "Em hãy thử lại nhé! 1 km² = 1.000 m × 1.000 m.";
+
+      feedback.style.color = correct ? "#137a51" : "#a13b32";
+
+      Array.from(answers.children).forEach((item) => {
+        item.disabled = true;
+      });
+    });
+
+    answers.appendChild(button);
+  });
+
+  box.appendChild(answers);
+  box.appendChild(feedback);
+}
+
+async function getWikipediaPage(place) {
+  const searchUrl = new URL(
+    "https://vi.wikipedia.org/w/api.php"
+  );
+
+  searchUrl.search = new URLSearchParams({
+    action: "query",
+    list: "search",
+    srsearch: place,
+    srlimit: "1",
+    format: "json",
+    origin: "*"
+  }).toString();
+
+  const searchResponse = await fetch(searchUrl);
+
+  if (!searchResponse.ok) {
+    throw new Error("Không kết nối được Wikipedia.");
+  }
+
+  const searchData = await searchResponse.json();
+  const first = searchData.query?.search?.[0];
+
+  if (!first) {
+    throw new Error("Không tìm thấy địa danh.");
+  }
+
+  const summaryUrl =
+    "https://vi.wikipedia.org/api/rest_v1/page/summary/" +
+    encodeURIComponent(first.title.replace(/ /g, "_"));
+
+  const summaryResponse = await fetch(summaryUrl);
+
+  if (!summaryResponse.ok) {
+    throw new Error("Không tải được phần giới thiệu.");
+  }
+
+  return await summaryResponse.json();
+}
+
+async function loadImage(page, place) {
+  const image = $("placeImage");
+
+  image.onerror = null;
+  image.removeAttribute("src");
+  image.alt = "Ảnh minh họa " + place;
+
+  $("imageCredit").textContent = "Đang tải ảnh minh họa…";
+
+  const url = page.thumbnail?.source || page.originalimage?.source;
+
+  if (url) {
+    image.src = url;
+    $("imageCredit").textContent =
+      "Ảnh minh họa từ Wikipedia. Mở nguồn tham khảo để kiểm tra thông tin ảnh.";
+    return;
+  }
+
+  $("imageCredit").textContent =
+    "Bài viết chưa có ảnh đại diện. Em có thể mở nguồn tham khảo để xem thêm.";
+}
 
 async function searchPlace(place) {
-  place = place.trim();
+  place = String(place || "").trim();
   if (!place) return;
 
   if (place.length > 160) {
-    showError("Tên địa danh hơi dài. Em hãy nhập tên ngắn hơn nhé!");
+    showError("Tên địa danh quá dài. Em hãy nhập tên ngắn hơn nhé!");
     return;
   }
 
@@ -59,71 +345,85 @@ async function searchPlace(place) {
   setLoading(true);
 
   try {
-    // Tra cứu trực tiếp từ bách khoa mở, không gọi OpenAI API.
-    await lookupOpenKnowledge(place);
-  } catch (err) {
-    showError(
-      "Chưa tra cứu được địa danh này. Em hãy thử tên đầy đủ hơn hoặc kiểm tra kết nối Internet."
+    const page = await getWikipediaPage(place);
+    const summary = String(page.extract || "").trim();
+
+    const sentences = summary
+      .split(/(?<=[.!?])\s+/)
+      .filter((sentence) => sentence.length > 15)
+      .slice(0, 3);
+
+    const normalizedPlace = normalize(place);
+    const normalizedTitle = normalize(page.title || "");
+
+    const known = knownPlaces.find((item) =>
+      item.names.some((name) => {
+        const normalizedName = normalize(name);
+        return (
+          normalizedName === normalizedPlace ||
+          normalizedName === normalizedTitle
+        );
+      })
     );
 
-    const a = document.createElement("a");
-    a.href =
-      "https://www.google.com/search?q=" +
-      encodeURIComponent(place + " diện tích km² nguồn chính thức");
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    a.textContent = "Mở tìm kiếm nguồn tham khảo";
-    a.style.display = "inline-block";
-    a.style.marginTop = "8px";
-    a.style.color = "#126b59";
+    const sources = [
+      {
+        title: "Đọc bài viết Wikipedia",
+        url:
+          page.content_urls?.desktop?.page ||
+          "https://vi.wikipedia.org/wiki/" +
+            encodeURIComponent((page.title || place).replace(/ /g, "_"))
+      },
+      {
+        title: "Tìm diện tích từ nguồn chính thức",
+        url:
+          "https://www.google.com/search?q=" +
+          encodeURIComponent(place + " diện tích km² nguồn chính thức")
+      }
+    ];
 
-    $("error").appendChild(document.createElement("br"));
-    $("error").appendChild(a);
+    if (known?.source) {
+      sources.unshift({
+        title: "Nguồn tham khảo bổ sung",
+        url: known.source
+      });
+    }
+
+    showFacts({
+      title: page.title || place,
+      subtitle: page.description || "Thông tin địa lí tham khảo",
+      area: known?.area || "Chưa xác minh được",
+      area_note: known
+        ? known.note
+        : "Chưa có số liệu diện tích được kiểm duyệt cho địa danh này. Hãy mở nguồn chính thức để kiểm tra; website không tự suy đoán.",
+      facts: known?.facts?.length ? known.facts : sentences,
+      sources
+    }, place);
+
+    buildQuiz();
+    await loadImage(page, place);
+  } catch (error) {
+    console.error("Lỗi tra cứu:", error);
+
+    showError(
+      "Chưa tải được dữ liệu miễn phí. Em hãy kiểm tra kết nối Internet hoặc thử lại sau."
+    );
   } finally {
     $("loading").style.display = "none";
   }
 }
 
-  if(!page?.extract) throw new Error('Không tìm thấy bài viết phù hợp từ nguồn bách khoa mở.');
-  const extract=page.extract.replace(/\s+/g,' ').trim();
-  // Only display area if the article text explicitly contains a plausible area figure; otherwise do not guess.
-  const areaMatch=extract.match(/(?:diện tích|area)\s*(?:khoảng|about|of|là|is|:)?\s*([\d.,]+\s*(?:triệu|million|nghìn|thousand)?\s*(?:km²|km2|kilomet(?:er|re)s? squared|square kilometres?|square kilometers?))/i);
-  const area=areaMatch?areaMatch[1]:'Chưa xác minh được';
-  const summaryUrl=page.content_urls?.desktop?.page || `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g,'_'))}`;
-  const searchOfficial='https://www.google.com/search?q='+encodeURIComponent('"'+place+'" diện tích km² nguồn chính thức');
-  const facts=[];
-  // Keep the automatically retrieved encyclopedia summary concise and age-appropriate.
-  const sentences=extract.split(/(?<=[.!?])\s+/).filter(Boolean);
-  facts.push(...sentences.slice(0,3).map(x=>x.slice(0,360)));
-  showFacts({
-    title:page.title||place,
-    subtitle:'Thông tin tra cứu tự động từ bách khoa mở · '+(lang==='vi'?'tiếng Việt':'tiếng Anh'),
-    area,
-    area_note:areaMatch?'Con số được nhận diện trong phần giới thiệu của bài viết; hãy mở nguồn và đối chiếu phạm vi, năm thống kê.':'Nguồn giới thiệu chưa nêu rõ diện tích theo km². Không tự suy đoán; hãy mở kết quả tìm kiếm nguồn chính thức bên dưới để kiểm chứng.',
-    facts,
-    sources:[{title:'Đọc bài viết nguồn',url:summaryUrl},{title:'Tìm số liệu diện tích từ nguồn chính thức',url:searchOfficial}]
-  },place);
-  buildQuiz({question:'1 km² bằng bao nhiêu mét vuông?',options:['1.000 m²','10.000 m²','100.000 m²','1.000.000 m²'],correct_index:3,explanation:'Vì 1 km = 1.000 m nên 1 km² = 1.000 m × 1.000 m = 1.000.000 m².'});
-  loadImage(page.title||place,summaryUrl);
-  
-}
-async function searchPlace(place){
-  place=place.trim(); if(!place)return;
-  if(place.length>160){showError('Tên địa danh hơi dài. Em hãy nhập tên ngắn hơn nhé!');return}
-  lastPlace=place;setLoading(true);
-  try{
-    const resp=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({place})});
-    if(!resp.ok){let m='Máy chủ AI chưa sẵn sàng.';try{const e=await resp.json();m=e.error||m}catch{}throw new Error(m)}
-    const data=await resp.json();
-    showFacts(data,place);buildQuiz(data.quiz);loadImage(place,data.wiki_url);
-  }catch(err){
-    try{await lookupOpenKnowledge(place)}
-    catch(fallbackError){
-      showError('Chưa tra cứu được địa danh này. Kiểm tra kết nối Internet hoặc thử tên khác. Bạn cũng có thể mở tìm kiếm web: '+place+'.');
-      const a=document.createElement('a');a.href='https://www.google.com/search?q='+encodeURIComponent(place+' diện tích km² nguồn chính thức');a.target='_blank';a.rel='noopener noreferrer';a.textContent='Mở tìm kiếm web';a.style.display='inline-block';a.style.marginTop='8px';a.style.color='#126b59';$('error').appendChild(document.createElement('br'));$('error').appendChild(a);
-    }
-  }finally{$('loading').style.display='none'}
-}
-form.addEventListener('submit',e=>{e.preventDefault();searchPlace(input.value)});document.querySelectorAll('[data-place]').forEach(b=>b.addEventListener('click',()=>{input.value=b.dataset.place;searchPlace(b.dataset.place)}));
+form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  searchPlace(input.value);
+});
+
+document.querySelectorAll("[data-place]").forEach((button) => {
+  button.addEventListener("click", () => {
+    input.value = button.dataset.place;
+    searchPlace(button.dataset.place);
+  });
+});
+
 </script>
 </body></html>
