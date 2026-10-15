@@ -1,0 +1,7 @@
+{
+  "name": "nha-kham-pha-dien-tich-toan5",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Website khám phá diện tích địa danh cho học sinh lớp 5",
+  "engines": { "node": ">=20" }
+}
